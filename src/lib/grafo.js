@@ -38,9 +38,11 @@ export const porId = Object.fromEntries(MUNICIPIOS.map((m) => [m.id, m]));
 
 // Lista de adyacencia: { MOC: [{ to, km, min, nota }], ... }
 // Los vecinos se ordenan alfabéticamente para que el recorrido sea reproducible.
-export function listaAdyacencia() {
+export function listaAdyacencia(cerrados = []) {
+  const bloqueados = new Set(cerrados);
   const adj = Object.fromEntries(MUNICIPIOS.map((m) => [m.id, []]));
   for (const [a, b, km, min, nota] of TRAMOS) {
+    if (bloqueados.has(claveTramo(a, b))) continue;
     adj[a].push({ to: b, km, min, nota });
     adj[b].push({ to: a, km, min, nota });
   }

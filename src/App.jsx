@@ -22,12 +22,12 @@ const INFO = {
   bfs: { nombre: 'BFS', largo: 'Búsqueda en anchura', estructura: 'Cola (FIFO)', col: 'Nivel', complejidad: 'O(V + E)',
     uso: 'Ruta con menos tramos (menos transbordos o peajes), sin mirar los km.' },
   dfs: { nombre: 'DFS', largo: 'Búsqueda en profundidad', estructura: 'Pila (LIFO)', col: 'Prof.', complejidad: 'O(V + E)',
-    uso: 'Saber si dos municipios están conectados y explorar toda la red. No da la ruta más corta.' },
+    uso: 'Comprobar si existe conexión. Esta demo se detiene al alcanzar el destino; no garantiza la ruta más corta.' },
   dijkstra: { nombre: 'Dijkstra', largo: 'Camino más corto con pesos', estructura: 'Cola de prioridad (montículo mínimo)', col: 'Dist.', complejidad: 'O((V + E) log V)',
     uso: 'Ruta de menor distancia o menor tiempo cuando los tramos tienen pesos distintos.' },
 };
 
-const correr = (alg, o, d, peso) => (alg === 'bfs' ? bfs(o, d) : alg === 'dfs' ? dfs(o, d) : dijkstra(o, d, peso));
+const correr = (alg, o, d, peso, cerrados) => (alg === 'bfs' ? bfs(o, d, cerrados) : alg === 'dfs' ? dfs(o, d, cerrados) : dijkstra(o, d, peso, cerrados));
 const fmtMin = (m) => `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')} min`;
 
 export default function App() {
@@ -38,15 +38,16 @@ export default function App() {
   const [paso, setPaso] = useState(0);
   const [play, setPlay] = useState(false);
   const [vel, setVel] = useState(700);
+  const [cerrados, setCerrados] = useState([]);
   const logRef = useRef(null);
 
-  const res = useMemo(() => correr(alg, origen, destino, peso), [alg, origen, destino, peso]);
-  const comparacion = useMemo(() => ['bfs', 'dfs', 'dijkstra'].map((a) => correr(a, origen, destino, peso)), [origen, destino, peso]);
+  const res = useMemo(() => correr(alg, origen, destino, peso, cerrados), [alg, origen, destino, peso, cerrados]);
+  const comparacion = useMemo(() => ['bfs', 'dfs', 'dijkstra'].map((a) => correr(a, origen, destino, peso, cerrados)), [origen, destino, peso, cerrados]);
   const total = res.pasos.length;
   const s = res.pasos[Math.min(paso, total - 1)];
   const final = paso >= total - 1;
 
-  useEffect(() => { setPaso(0); setPlay(false); }, [alg, origen, destino, peso]);
+  useEffect(() => { setPaso(0); setPlay(false); }, [alg, origen, destino, peso, cerrados]);
   useEffect(() => {
     if (!play) return;
     if (final) { setPlay(false); return; }
@@ -55,7 +56,7 @@ export default function App() {
   }, [play, paso, final, vel]);
   useEffect(() => {
     const el = logRef.current?.querySelector('[data-actual="true"]');
-    el?.scrollIntoView({ block: 'nearest' });
+    if (el && logRef.current) logRef.current.scrollTop = el.offsetTop - logRef.current.offsetTop - 40;
   }, [paso]);
 
   const enCamino = new Set();
@@ -76,6 +77,12 @@ export default function App() {
   const intercambiar = () => { setOrigen(destino); setDestino(origen); };
   const info = INFO[alg];
   const unidad = alg === 'dijkstra' ? (peso === 'km' ? 'km' : 'min') : '';
+  const escenario = (tipo) => {
+    setPlay(false); setPaso(0); setCerrados([]);
+    setOrigen(tipo === 'dfs' ? 'PGU' : 'MOC'); setDestino(tipo === 'dfs' ? 'ORI' : 'HOR');
+    setAlg(tipo === 'dfs' ? 'dfs' : 'dijkstra'); setPeso(tipo === 'km' ? 'km' : 'min');
+    if (tipo === 'cierre') { setDestino('DOR'); setAlg('dfs'); setCerrados([claveTramo('HOR', 'DOR')]); }
+  };
 
   return (
     <div className="app">
@@ -83,7 +90,8 @@ export default function App() {
         <div className="cab-int">
           <p className="eyebrow">Estructuras de datos avanzadas · Práctica de grafos</p>
           <h1>Rutas del Putumayo</h1>
-          <p className="lead">12 municipios y 12 tramos de carretera. Escoja origen, destino y algoritmo, y siga paso a paso cómo BFS, DFS y Dijkstra recorren la red vial.</p>
+          <p className="lead">12 cabeceras y 12 conexiones en un modelo del Putumayo. Escoja origen, destino y algoritmo, y siga paso a paso cómo BFS, DFS y Dijkstra recorren la red.</p>
+          <p className="autores">Fabian Andres Coral Garcia · Jorge Montoya · Cristian</p>
         </div>
       </header>
 
@@ -118,6 +126,24 @@ export default function App() {
         </div>
       </section>
 
+      <section className="escenarios" aria-label="Casos de demostración">
+        <strong>Demostración guiada</strong>
+        <button onClick={() => escenario('km')}>01 · Menos kilómetros</button>
+        <button onClick={() => escenario('min')}>02 · Menos tiempo</button>
+        <button onClick={() => escenario('dfs')}>03 · DFS y sus límites</button>
+        <button onClick={() => escenario('cierre')}>04 · Vía cerrada</button>
+      </section>
+
+      <details className="cierres">
+        <summary>Simular cierres de vías · {cerrados.length} de {TRAMOS.length} tramos cerrados</summary>
+        <p>Marque los tramos que quiere cerrar. El grafo y los tres algoritmos se recalculan con la misma red.</p>
+        <div className="lista-cierres">{TRAMOS.map(([a, b]) => {
+          const k = claveTramo(a, b);
+          return <label key={k}><input type="checkbox" checked={cerrados.includes(k)} onChange={() => setCerrados((prev) => prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k])} />{porId[a].nombre} — {porId[b].nombre}</label>;
+        })}</div>
+        <button onClick={() => setCerrados([])} disabled={!cerrados.length}>Restablecer todas las vías</button>
+      </details>
+
       <main className="rejilla">
         <section className="mapa-card" aria-label="Mapa del grafo">
           <div className="mapa-cab">
@@ -138,17 +164,19 @@ export default function App() {
               {TRAMOS.map(([a, b, km, min]) => {
                 const k = claveTramo(a, b);
                 const A = porId[a], B = porId[b];
-                const cls = enCamino.has(k) ? 'camino' : k === activa ? 'activa' : arbol.has(k) ? 'arbol' : '';
+                const cerrado = cerrados.includes(k);
+                const cls = cerrado ? 'cerrado' : enCamino.has(k) ? 'camino' : k === activa ? 'activa' : arbol.has(k) ? 'arbol' : '';
                 const mx = (px(lonDe(A)) + px(lonDe(B))) / 2, my = (py(latDe(A)) + py(latDe(B))) / 2;
                 const valle = ['SFR-SIB', 'COL-SIB', 'COL-SAN'].includes(k);
                 return (
                   <g key={k} className={`tramo ${cls}`}>
+                    <title>{porId[a].nombre} — {porId[b].nombre}: {cerrado ? 'Vía cerrada' : `${km} km, ${min} minutos`}</title>
                     <line x1={px(lonDe(A))} y1={py(latDe(A))} x2={px(lonDe(B))} y2={py(latDe(B))} />
                     {!valle && (
                       <g transform={`translate(${mx},${my})`}>
                         <rect x="-27" y="-10" width="54" height="20" rx="4" className="peso-bg" />
                         <text className="peso" textAnchor="middle" dy="4">
-                          {alg === 'dijkstra' && peso === 'min' ? `${min} min` : `${km} km`}
+                          {cerrado ? 'Cerrada' : alg === 'dijkstra' && peso === 'min' ? `${min} min` : `${km} km`}
                         </text>
                       </g>
                     )}
@@ -182,6 +210,7 @@ export default function App() {
             <li><i className="sw actual" />Procesando</li>
             <li><i className="sw visitado" />Visitado</li>
             <li><i className="sw camino" />Ruta final</li>
+            <li><i className="sw cerrado" />Vía cerrada</li>
           </ul>
           <div className="reproductor">
             <button onClick={() => { setPaso(0); setPlay(false); }} aria-label="Reiniciar">Reiniciar</button>
@@ -195,6 +224,9 @@ export default function App() {
               <input id="vel" type="range" min="150" max="1500" step="50" value={1650 - vel} onChange={(e) => setVel(1650 - +e.target.value)} />
             </label>
           </div>
+          <label className="progreso" htmlFor="paso">Explorar la traza
+            <input id="paso" type="range" min="0" max={total - 1} value={Math.min(paso, total - 1)} onChange={(e) => { setPlay(false); setPaso(Number(e.target.value)); }} />
+          </label>
         </section>
 
         <aside className="panel">
@@ -254,12 +286,12 @@ export default function App() {
       <section className={`resultado ${final ? 'listo' : ''}`} aria-label="Resultado">
         <div className="res-ruta">
           <span className="lbl">Ruta encontrada por {info.nombre}</span>
-          <p className="ruta">{final ? res.camino.map((id) => porId[id].nombre).join('  →  ') : 'Reproduzca o avance hasta el final para ver la ruta.'}</p>
+          <p className="ruta" role="status">{final ? (res.camino.length ? res.camino.map((id) => porId[id].nombre).join('  →  ') : 'Sin conexión: no existe una ruta con las vías habilitadas.') : 'Reproduzca o avance hasta el final para ver la ruta.'}</p>
         </div>
         <dl className="cifras">
-          <div><dt>Distancia</dt><dd>{final ? `${res.km} km` : '—'}</dd></div>
-          <div><dt>Tiempo estimado</dt><dd>{final ? fmtMin(res.min) : '—'}</dd></div>
-          <div><dt>Tramos</dt><dd>{final ? res.saltos : '—'}</dd></div>
+          <div><dt>Distancia</dt><dd>{final && res.camino.length ? `${res.km} km` : '—'}</dd></div>
+          <div><dt>Tiempo estimado</dt><dd>{final && res.camino.length ? fmtMin(res.min) : '—'}</dd></div>
+          <div><dt>Tramos</dt><dd>{final && res.camino.length ? res.saltos : '—'}</dd></div>
           <div><dt>Nodos explorados</dt><dd>{final ? res.explorados : '—'}</dd></div>
         </dl>
       </section>
@@ -272,16 +304,16 @@ export default function App() {
             <thead><tr><th>Algoritmo</th><th>Estructura</th><th>Ruta</th><th className="num">km</th><th className="num">Tiempo</th><th className="num">Tramos</th><th className="num">Explorados</th><th>Complejidad</th></tr></thead>
             <tbody>
               {comparacion.map((r) => {
-                const mejorKm = Math.min(...comparacion.map((x) => x.km));
-                const mejorMin = Math.min(...comparacion.map((x) => x.min));
+                const mejorKm = Math.min(...comparacion.filter((x) => x.camino.length).map((x) => x.km));
+                const mejorMin = Math.min(...comparacion.filter((x) => x.camino.length).map((x) => x.min));
                 return (
                   <tr key={r.algoritmo} className={r.algoritmo === alg ? 'sel' : ''}>
                     <td><strong>{INFO[r.algoritmo].nombre}</strong></td>
                     <td>{INFO[r.algoritmo].estructura}</td>
-                    <td className="ruta-cel">{r.camino.map((id) => porId[id].nombre).join(' → ')}</td>
-                    <td className={`num ${r.km === mejorKm ? 'mejor' : ''}`}>{r.km}</td>
-                    <td className={`num ${r.min === mejorMin ? 'mejor' : ''}`}>{fmtMin(r.min)}</td>
-                    <td className="num">{r.saltos}</td>
+                    <td className="ruta-cel">{r.camino.length ? r.camino.map((id) => porId[id].nombre).join(' → ') : 'Sin conexión'}</td>
+                    <td className={`num ${r.camino.length && r.km === mejorKm ? 'mejor' : ''}`}>{r.camino.length ? r.km : '—'}</td>
+                    <td className={`num ${r.camino.length && r.min === mejorMin ? 'mejor' : ''}`}>{r.camino.length ? fmtMin(r.min) : '—'}</td>
+                    <td className="num">{r.camino.length ? r.saltos : '—'}</td>
                     <td className="num">{r.explorados}</td>
                     <td><code>{INFO[r.algoritmo].complejidad}</code></td>
                   </tr>
@@ -298,11 +330,12 @@ export default function App() {
             </article>
           ))}
         </div>
-        <p className="tip"><strong>Pruebe:</strong> Mocoa → La Hormiga con Dijkstra por <em>distancia</em> da la vía directa (176 km), pero por <em>tiempo</em> conviene pasar por Orito (183 km, media hora menos). Con Puerto Guzmán → Orito, DFS encuentra una ruta 69 km más larga que BFS y Dijkstra.</p>
+        <p className="tip"><strong>Con todas las vías abiertas:</strong> Mocoa → La Hormiga por distancia da 176 km; por tiempo, 183 km y 3 h 58 min (29 minutos menos). Puerto Guzmán → Orito: DFS recorre 231 km; BFS y Dijkstra, 162 km.</p>
+        <p className="ayuda">Las complejidades corresponden al núcleo de los algoritmos sobre una lista de adyacencia. Esta demo añade copias de estado en cada paso y ordena la cola de prioridad para mostrarla; guardar y reproducir la traza tiene un costo adicional. La cola mostrada ordenada no es la distribución interna del montículo.</p>
       </section>
 
       <footer className="pie">
-        <p>Distancias y tiempos aproximados por carretera, redondeados a partir de calcularruta.com, distanciasentre.com y geodatos.net. Puerto Leguízamo no se incluye porque no tiene conexión por carretera (acceso fluvial y aéreo). Uso académico.</p>
+        <p>Modelo académico de 12 cabeceras y 12 conexiones; no representa toda la red vial del departamento. La Hormiga es cabecera de Valle del Guamuez y La Dorada, de San Miguel. Se conserva el conjunto de datos aportado por el grupo: distancias y tiempos aproximados, con tramos repartidos proporcionalmente y sin validación vial independiente. No usar para navegación. Puerto Leguízamo no forma parte del modelo.</p>
       </footer>
     </div>
   );
