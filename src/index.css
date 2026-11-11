@@ -172,5 +172,21 @@ code { font-family: var(--f-mono); font-size: 12.5px; }
 .tip { margin: 0; padding: 12px 14px; border: 1px dashed var(--path); border-radius: 10px; max-width: 90ch; }
 .pie { color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--line); padding-top: 14px; }
 .pie p { margin: 0; max-width: 100ch; }
+.autores { color: var(--muted); margin: 12px 0 0; font-size: 13px; }
+.escenarios { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.escenarios strong { margin-right: 8px; }
+.escenarios button, .cierres button { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 9px 12px; cursor: pointer; }
+.escenarios button:hover { border-color: var(--accent); color: var(--accent); }
+.cierres { background: var(--surface); padding: 14px 18px; border: 1px solid var(--line); border-radius: 10px; }
+.cierres summary { cursor: pointer; font-weight: 600; }
+.cierres p { color: var(--muted); }
+.lista-cierres { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.lista-cierres label { display: flex; gap: 8px; align-items: center; }
+.lista-cierres input { accent-color: var(--current); width: 18px; height: 18px; }
+.tramo.cerrado line { stroke: var(--current); stroke-dasharray: 5 8; opacity: .55; }
+.sw.cerrado { background: var(--current); border-radius: 0; }
+.progreso { display: flex; align-items: center; gap: 16px; padding: 0 16px 16px; font-size: 13px; color: var(--muted); }
+.progreso input { flex: 1; min-width: 80px; accent-color: var(--accent); }
+.tabla-wrap { position: relative; }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

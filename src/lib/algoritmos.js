@@ -30,21 +30,28 @@ function totales(camino, adj) {
 }
 
 /* ------------------------------------------------------------ BFS */
-export function bfs(origen, destino) {
-  const adj = listaAdyacencia();
+function validar(origen, destino, peso) {
+  if (!porId[origen] || !porId[destino]) throw new RangeError('Municipio desconocido.');
+  if (peso != null && !['km', 'min'].includes(peso)) throw new RangeError('Peso no válido.');
+}
+
+export function bfs(origen, destino, cerrados = []) {
+  validar(origen, destino);
+  const adj = listaAdyacencia(cerrados);
   const pasos = [];
   const dist = { [origen]: 0 }; // aquí dist = nivel (número de tramos)
   const prev = { [origen]: null };
   const cola = [origen];
+  let cabeza = 0;
   const visitados = [];
   const foto = (o) => pasos.push({
-    estructura: cola.map((id) => ({ id, etiqueta: `${dist[id]}` })),
+    estructura: cola.slice(cabeza).map((id) => ({ id, etiqueta: `${dist[id]}` })),
     visitados: [...visitados], dist: { ...dist }, prev: { ...prev }, arista: null, actual: null, ...o,
   });
 
   foto({ linea: 0, msg: `Encolamos ${N(origen)} con nivel 0 y lo marcamos como descubierto.` });
-  while (cola.length) {
-    const u = cola.shift();
+  while (cabeza < cola.length) {
+    const u = cola[cabeza++];
     visitados.push(u);
     foto({ linea: 1, actual: u, msg: `Sacamos ${N(u)} del FRENTE de la cola (FIFO). Nivel ${dist[u]}.` });
     if (u === destino) {
@@ -64,13 +71,15 @@ export function bfs(origen, destino) {
 }
 
 /* ------------------------------------------------------------ DFS */
-export function dfs(origen, destino) {
-  const adj = listaAdyacencia();
+export function dfs(origen, destino, cerrados = []) {
+  validar(origen, destino);
+  const adj = listaAdyacencia(cerrados);
   const pasos = [];
   const prev = { [origen]: null };
   const prof = { [origen]: 0 };
   const pila = [origen];
   const visitados = [];
+  const vistos = new Set();
   const foto = (o) => pasos.push({
     estructura: [...pila].reverse().map((id) => ({ id, etiqueta: `${prof[id]}` })), // tope primero
     visitados: [...visitados], dist: { ...prof }, prev: { ...prev }, arista: null, actual: null, ...o,
@@ -79,11 +88,12 @@ export function dfs(origen, destino) {
   foto({ linea: 0, msg: `Apilamos ${N(origen)}. DFS avanza lo más profundo posible antes de retroceder.` });
   while (pila.length) {
     const u = pila.pop();
-    if (visitados.includes(u)) {
+    if (vistos.has(u)) {
       foto({ linea: 1, actual: u, msg: `${N(u)} ya estaba visitado: lo descartamos de la pila.` });
       continue;
     }
     visitados.push(u);
+    vistos.add(u);
     foto({ linea: 1, actual: u, msg: `Sacamos ${N(u)} del TOPE de la pila (LIFO) y lo visitamos.` });
     if (u === destino) {
       foto({ linea: 2, actual: u, msg: `¡${N(destino)} alcanzado! DFS encuentra UN camino, no necesariamente el más corto.` });
@@ -91,7 +101,7 @@ export function dfs(origen, destino) {
     }
     // Se apilan en orden inverso para que el primer vecino (alfabético) quede en el tope.
     for (const { to: v } of [...adj[u]].reverse()) {
-      if (visitados.includes(v)) {
+      if (vistos.has(v)) {
         foto({ linea: 3, actual: u, arista: [u, v], msg: `${N(v)} ya visitado: no se apila.` });
         continue;
       }
@@ -133,8 +143,9 @@ class MinHeap {
   ordenado() { return [...this.a].sort((x, y) => x.d - y.d); }
 }
 
-export function dijkstra(origen, destino, peso = 'km') {
-  const adj = listaAdyacencia();
+export function dijkstra(origen, destino, peso = 'km', cerrados = []) {
+  validar(origen, destino, peso);
+  const adj = listaAdyacencia(cerrados);
   const unidad = peso === 'km' ? 'km' : 'min';
   const pasos = [];
   const dist = { [origen]: 0 };
@@ -142,6 +153,7 @@ export function dijkstra(origen, destino, peso = 'km') {
   const pq = new MinHeap();
   pq.push({ id: origen, d: 0 });
   const visitados = [];
+  const cerradosSet = new Set();
   const foto = (o) => pasos.push({
     estructura: pq.ordenado().map(({ id, d }) => ({ id, etiqueta: `${d} ${unidad}`, obsoleto: d > (dist[id] ?? Infinity) })),
     visitados: [...visitados], dist: { ...dist }, prev: { ...prev }, arista: null, actual: null, ...o,
@@ -150,11 +162,12 @@ export function dijkstra(origen, destino, peso = 'km') {
   foto({ linea: 0, msg: `dist[${N(origen)}] = 0, el resto = ∞. Insertamos ${N(origen)} en la cola de prioridad.` });
   while (pq.size) {
     const { id: u, d } = pq.pop();
-    if (visitados.includes(u) || d > dist[u]) {
+    if (cerradosSet.has(u) || d > dist[u]) {
       foto({ linea: 1, actual: u, msg: `Sale ${N(u)} con ${d} ${unidad}, pero es una entrada vieja (ya hay ${dist[u]}). Se descarta.` });
       continue;
     }
     visitados.push(u);
+    cerradosSet.add(u);
     foto({ linea: 1, actual: u, msg: `Sacamos el MÍNIMO de la cola: ${N(u)} con ${d} ${unidad}. Su distancia queda definitiva.` });
     if (u === destino) {
       foto({ linea: 2, actual: u, msg: `¡${N(destino)} cerrado con ${d} ${unidad}! Es la ruta de menor ${peso === 'km' ? 'distancia' : 'tiempo'}.` });
@@ -162,7 +175,7 @@ export function dijkstra(origen, destino, peso = 'km') {
     }
     for (const e of adj[u]) {
       const v = e.to; const w = e[peso];
-      if (visitados.includes(v)) {
+      if (cerradosSet.has(v)) {
         foto({ linea: 3, actual: u, arista: [u, v], msg: `${N(v)} ya está cerrado: no se relaja.` });
         continue;
       }
@@ -184,7 +197,7 @@ function cerrar(pasos, prev, origen, destino, adj, algoritmo) {
   const tot = totales(camino, adj);
   const ultimo = pasos[pasos.length - 1];
   pasos.push({
-    ...ultimo, linea: 5, arista: null, actual: destino, camino,
+    ...ultimo, linea: 5, arista: null, actual: camino.length ? destino : null, camino,
     msg: camino.length
       ? `Reconstruimos el camino siguiendo prev[] desde el destino: ${camino.map(N).join(' → ')}.`
       : `No hay camino entre ${N(origen)} y ${N(destino)}.`,
